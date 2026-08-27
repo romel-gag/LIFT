@@ -176,6 +176,14 @@ After understanding the system, create an `/ai` directory with this structure:
 ├── features/
 │   └── feature-overview.md
 │
+├── activity-diagrams/                 # created only when I ask — see "On-Demand Tasks" below
+│   └── <feature>/
+│       └── activity-diagram-<feature>-0001.html
+│
+├── test-cases/                        # created only when I ask — see "On-Demand Tasks" below
+│   └── <feature>/
+│       └── test-cases-<feature>-0001.html
+│
 ├── issues/
 │   ├── known-issues.md
 │   ├── technical-debt.md
@@ -187,6 +195,8 @@ After understanding the system, create an `/ai` directory with this structure:
 ```
 
 Populate every file from your analysis. Keep the documentation **stack-accurate** — describe the tools this project actually uses, not generic placeholders. If a category does not apply (e.g. no mobile app, no queues), state that briefly rather than inventing content.
+
+`activity-diagrams/` and `test-cases/` are the two exceptions: **do not create them or anything inside them during initialization.** They are built only on explicit request — see the *On-Demand Task* sections near the end of this document.
 
 ---
 
@@ -200,6 +210,8 @@ It should contain:
 * Coding standards **derived from the existing codebase** (match the project's real conventions, linter/formatter config, and idioms — do not impose foreign conventions)
 * AI behavior rules
 * Documentation update rules
+* Activity diagram rules — created **only on explicit request**, never automatically; one subdirectory per feature under `/ai/activity-diagrams/`, self-contained HTML, append-only 4-digit versioning (`activity-diagram-<feature>-0001.html`), never edit or delete an existing version
+* Test case rules — created **only on explicit request**, never automatically; one subdirectory per feature under `/ai/test-cases/`, self-contained HTML, append-only 4-digit versioning (`test-cases-<feature>-0001.html`), never edit or delete an existing version
 * Issue tracking rules
 * Architecture decision rules
 
@@ -218,7 +230,7 @@ Tune
 * **Learn** — understand the relevant part of the system and existing conventions before writing anything.
 * **Intend** — state the plan and intended changes; confirm scope.
 * **Forge** — implement, following the project's established patterns.
-* **Tune** — test, refine, and update the `/ai` documentation to reflect the change.
+* **Tune** — test, refine, and update the `/ai` documentation to reflect the change. If the change alters the behaviour of a feature that already has an activity diagram or a test case document, **flag that it is now out of date and stop** — do not create or update either unless I ask.
 
 ---
 
@@ -462,6 +474,162 @@ List:
 ## Recommendations
 
 Suggest concrete next steps.
+
+---
+
+# On-Demand Task: Feature Activity Diagrams
+
+**Do not perform this task during initialization.** Do not create any activity diagram, and do not create the `/ai/activity-diagrams/` directory, unless I explicitly ask for it.
+
+This section defines *how* to build an activity diagram when — and only when — I request one. Requests look like:
+
+* "Create an activity diagram for `<feature>`."
+* "Update the activity diagram for `<feature>`."
+* "Create activity diagrams for `<feature-a>`, `<feature-b>`."
+
+Never generate diagrams for features I did not name, and never generate them proactively as part of another task, a Tune step, or a documentation refresh. If you believe a diagram is missing or out of date, **say so and stop** — let me decide.
+
+## When I do ask
+
+Create `/ai/activity-diagrams/` if it does not exist yet, then create **one subdirectory per requested feature**, named after the feature in `kebab-case`, and inside it **one activity diagram as a single HTML file**:
+
+```
+/ai/activity-diagrams/<feature>/activity-diagram-<feature>-0001.html
+```
+
+Example:
+
+```
+/ai/activity-diagrams/
+├── user-authentication/
+│   └── activity-diagram-user-authentication-0001.html
+├── checkout/
+│   ├── activity-diagram-checkout-0001.html
+│   └── activity-diagram-checkout-0002.html
+└── invoice-generation/
+    └── activity-diagram-invoice-generation-0001.html
+```
+
+### Scope
+
+Diagram **only the features I named** — never the full feature list. Resolve the name against `/ai/features/feature-overview.md` and reuse it kebab-cased in the directory name and the file name so the two always line up with the overview. If the name I gave is ambiguous or absent from the overview, ask which feature I mean before creating anything.
+
+### Versioning rules
+
+* The version suffix is a **zero-padded 4-digit sequence**, starting at `0001`.
+* **Never edit, rename, or delete an existing diagram file.** When a feature's flow changes, add the next number (`-0002.html`, `-0003.html`, …).
+* The **highest-numbered file in a subdirectory is the current diagram**; lower numbers are history.
+* Every diagram must state, near the top of the rendered page: the feature name, the version number, the date, and a one-line summary of what changed versus the previous version (`Initial version.` for `0001`).
+
+### Diagram content
+
+Each diagram must describe the feature's **actual** runtime flow as found in the code — not an idealized flow. Show:
+
+* Start and end states.
+* The actor or trigger (user action, cron, webhook, queue message, external callback).
+* Ordered activities across every layer the flow touches (client → API → business logic → data store → external service), with the layer identified.
+* Decision points and branches, including validation and authorization checks.
+* Error, failure, and rollback paths.
+* Asynchronous hand-offs (jobs, queues, events) marked as async rather than drawn as inline steps.
+* The concrete code entry points involved, as `path/to/file.ext` references next to the relevant activities, so the diagram stays traceable to the source.
+
+If a flow cannot be determined from the code, mark that segment `UNVERIFIED` in the diagram rather than guessing.
+
+### File requirements
+
+* **Self-contained and offline.** One HTML file per diagram, openable directly in a browser with no build step, no local server, and no network access. Inline all CSS and any JavaScript; do not link external stylesheets, scripts, fonts, or images.
+* Render the diagram as **inline SVG**, or as plain HTML/CSS boxes and connectors. Do not depend on a CDN-hosted diagramming library.
+* Include a `<title>` of the form `Activity Diagram — <Feature> — v0001`.
+* Legible in both light and dark browser themes; wide diagrams scroll inside their own container rather than forcing the page to scroll sideways.
+* Keep the markup readable and hand-editable — a human should be able to diff two versions.
+
+### Index
+
+After creating a diagram, add or update its row in an activity-diagram table in `/ai/features/feature-overview.md` — feature, current version, relative link. Only list features that actually have a diagram.
+
+---
+
+# On-Demand Task: Feature Test Cases
+
+**Do not perform this task during initialization.** Do not create any test case document, and do not create the `/ai/test-cases/` directory, unless I explicitly ask for it.
+
+This section defines *how* to build a test case document when — and only when — I request one. Requests look like:
+
+* "Create test cases for `<feature>`."
+* "Update the test cases for `<feature>`."
+* "Create test cases for `<feature-a>`, `<feature-b>`."
+
+Never generate test cases for features I did not name, and never generate them proactively as part of another task, a Tune step, a bug fix, or a documentation refresh. If you believe test cases are missing or out of date, **say so and stop** — let me decide.
+
+Writing a test case document does **not** mean writing test code. Do not create, modify, or run test files, test suites, or any other source unless I ask separately.
+
+## When I do ask
+
+Create `/ai/test-cases/` if it does not exist yet, then create **one subdirectory per requested feature**, named after the feature in `kebab-case`, and inside it **one test case document as a single HTML file**:
+
+```
+/ai/test-cases/<feature>/test-cases-<feature>-0001.html
+```
+
+Example:
+
+```
+/ai/test-cases/
+├── user-authentication/
+│   └── test-cases-user-authentication-0001.html
+├── checkout/
+│   ├── test-cases-checkout-0001.html
+│   └── test-cases-checkout-0002.html
+└── invoice-generation/
+    └── test-cases-invoice-generation-0001.html
+```
+
+### Scope
+
+Write test cases for **only the features I named** — never the full feature list. Resolve the name against `/ai/features/feature-overview.md` and reuse it kebab-cased in the directory name and the file name so the two always line up with the overview. Use the **same feature slug** as that feature's activity diagram, if one exists, so `activity-diagrams/<feature>/` and `test-cases/<feature>/` always match. If the name I gave is ambiguous or absent from the overview, ask which feature I mean before creating anything.
+
+### Versioning rules
+
+* The version suffix is a **zero-padded 4-digit sequence**, starting at `0001`.
+* **Never edit, rename, or delete an existing test case file.** When the feature's behaviour changes, add the next number (`-0002.html`, `-0003.html`, …).
+* The **highest-numbered file in a subdirectory is the current document**; lower numbers are history.
+* Every document must state, near the top of the rendered page: the feature name, the version number, the date, the total case count, and a one-line summary of what changed versus the previous version (`Initial version.` for `0001`).
+
+### Test case content
+
+Derive every case from the feature's **actual** implemented behaviour as found in the code — not from assumed or intended behaviour. Render the cases as a table, one row per case, with these columns:
+
+* **ID** — `TC-<FEATURE>-001`, incrementing within the document (e.g. `TC-CHECKOUT-001`). IDs are stable: once assigned, an ID always refers to the same case across versions.
+* **Title** — short description of what is being verified.
+* **Type** — `Happy path`, `Validation`, `Authorization`, `Edge case`, `Negative`, `Error handling`, or `Regression`.
+* **Priority** — `High`, `Medium`, `Low`.
+* **Preconditions** — required state, seeded data, roles, feature flags, environment.
+* **Steps** — numbered, concrete, and reproducible; include the actual inputs used.
+* **Expected result** — the observable outcome, including status codes, error messages, persisted state changes, and side effects (emails, jobs queued, webhooks fired).
+* **Code reference** — `path/to/file.ext` for the handler, validation rule, or business logic the case exercises.
+* **Automated?** — `Yes — path/to/test.ext::test_name`, or `No`.
+
+Cover, for each feature:
+
+* The primary happy path, and each meaningful variant of it.
+* Every validation rule and its failure message.
+* Every authorization boundary — each role or permission that should be allowed and denied.
+* Boundary values and edge cases (empty, minimum, maximum, over-limit, duplicate, concurrent).
+* Error and failure handling, including external service failure and rollback behaviour.
+* Asynchronous outcomes (queued jobs, events, webhooks) as their own cases.
+
+Close the document with a **Coverage gaps** section: cases that exist here but have no automated test, behaviour that could not be determined from the code (mark `UNVERIFIED` rather than guessing), and anything untestable without additional fixtures or access.
+
+### File requirements
+
+* **Self-contained and offline.** One HTML file per document, openable directly in a browser with no build step, no local server, and no network access. Inline all CSS and any JavaScript; do not link external stylesheets, scripts, fonts, or images.
+* Include a `<title>` of the form `Test Cases — <Feature> — v0001`.
+* Legible in both light and dark browser themes; the case table scrolls inside its own container rather than forcing the page to scroll sideways.
+* Keep the markup readable and hand-editable — a human should be able to diff two versions.
+
+### Index
+
+After creating a document, add or update its row in a test-case table in `/ai/features/feature-overview.md` — feature, current version, case count, relative link. Only list features that actually have test cases.
 
 ---
 
