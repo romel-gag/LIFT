@@ -35,6 +35,40 @@ Only after detection do you apply the relevant analysis lenses below.
 
 ---
 
+# Guiding Principle: Generated, Not Re-Derived
+
+Everything under `/ai` falls into exactly one of two categories. Know which one you are writing into before you write.
+
+| | **Generated** — `/ai/generated/**` | **Authored** — everything else under `/ai` |
+| --- | --- | --- |
+| Produced by | A command or tool, run by you or by CI | You, from analysis |
+| Hand-edited | **Never** | Yes, that is the point |
+| On change | Re-run the command, overwrite the file | Add a new version, or update the document |
+| Contains | Facts the stack can emit mechanically | Interpretation, intent, rationale, flow |
+
+**Before describing anything that the stack can emit mechanically, check whether a command already produces it.** If one does, do not transcribe its output into prose. Run it, commit the output under `/ai/generated/`, record the exact command, and reference the file from your authored documentation.
+
+This applies to, among others:
+
+* **Route / endpoint inventories** — e.g. `php artisan route:list --json` (Laravel), `rails routes` (Rails), `/openapi.json` (FastAPI), `@nestjs/swagger` export (NestJS), springdoc `/v3/api-docs` (Spring), Swashbuckle `swagger.json` (ASP.NET), drf-spectacular schema (Django REST), `express-list-endpoints` or a short router-stack script (Express/Koa).
+* **OpenAPI / GraphQL schema documents**
+* **Database schema dumps and migration status**
+* **Dependency trees and license inventories**
+* **Environment variable and config key listings**
+
+Rules for `/ai/generated/**`:
+
+* Every generated file begins with a banner comment naming the **exact command** that produced it and stating `DO NOT EDIT — regenerate with the command above`. Use the file format's comment syntax; for JSON with no comment syntax, put it in a `"_generated"` key.
+* Generated files are **not versioned** with the `-0001` scheme. They are overwritten wholesale, because their history is the code's history.
+* Maintain `/ai/generated/README.md` listing each generated file, its command, and how often it should be refreshed.
+* If a needed generator does not exist in this stack, say so and describe the manual fallback. Do not silently hand-write the file into `/ai/generated/`.
+
+Never treat a generated file as a source of truth about *why* — it only tells you *what*. The authored documents carry intent.
+
+Create `/ai/generated/` during initialization **only if at least one generator command actually exists** for this stack. Running a read-only generator command during Phase 1 is permitted and expected; it is not a source-code change.
+
+---
+
 # Phase 1: Project Discovery (L — Learn)
 
 Analyze the existing repository top to bottom.
@@ -172,13 +206,18 @@ After understanding the system, create an `/ai` directory with this structure:
 ├── features/
 │   └── feature-overview.md
 │
+├── generated/                         # tool-produced, never hand-edited
+│   ├── README.md
+│   └── <generated files, e.g. endpoints.json, openapi.json>
+│
 ├── activity-diagrams/                 # created only when I ask — see "On-Demand Tasks" below
+│   ├── viewer.html                    # written once, shared by every diagram
 │   └── <feature>/
-│       └── activity-diagram-<feature>-0001.html
+│       └── activity-diagram-<feature>-0001.json
 │
 ├── test-cases/                        # created only when I ask — see "On-Demand Tasks" below
 │   └── <feature>/
-│       └── test-cases-<feature>-0001.html
+│       └── test-cases-<feature>-0001.md
 │
 ├── issues/
 │   ├── known-issues.md
@@ -194,6 +233,8 @@ Populate every file from your analysis. Keep the documentation **stack-accurate*
 
 `activity-diagrams/` and `test-cases/` are the two exceptions: **do not create them or anything inside them during initialization.** They are built only on explicit request — see the *On-Demand Task* sections near the end of this document.
 
+`generated/` is not an exception — create it during initialization if a generator command exists, per *Guiding Principle: Generated, Not Re-Derived*. Reference its files from the authored documents instead of restating their contents.
+
 # Phase 3: Create AI Development Rules
 
 Create `/AGENTS.md`.
@@ -204,8 +245,9 @@ It should contain:
 * Coding standards **derived from the existing codebase** (match the project's real conventions, linter/formatter config, and idioms — do not impose foreign conventions)
 * AI behavior rules
 * Documentation update rules
-* Activity diagram rules — created **only on explicit request**, never automatically; one subdirectory per feature under `/ai/activity-diagrams/`, self-contained HTML, append-only 4-digit versioning (`activity-diagram-<feature>-0001.html`), never edit or delete an existing version
-* Test case rules — created **only on explicit request**, never automatically; one subdirectory per feature under `/ai/test-cases/`, self-contained HTML, append-only 4-digit versioning (`test-cases-<feature>-0001.html`), never edit or delete an existing version
+* Generated-vs-authored rules — `/ai/generated/**` is tool-produced and never hand-edited; anything mechanically derivable is generated by command and referenced, not transcribed
+* Activity diagram rules — created **only on explicit request**, never automatically; one subdirectory per feature under `/ai/activity-diagrams/`, a **JSON payload** per version rendered by the shared committed `viewer.html`, append-only 4-digit versioning (`activity-diagram-<feature>-0001.json`), never edit or delete an existing version
+* Test case rules — created **only on explicit request**, never automatically; one subdirectory per feature under `/ai/test-cases/`, **Markdown** documents, append-only 4-digit versioning (`test-cases-<feature>-0001.md`), never edit or delete an existing version
 * Issue tracking rules
 * Architecture decision rules
 
@@ -358,26 +400,25 @@ This section defines *how* to build an activity diagram when — and only when �
 
 Never generate diagrams for features I did not name, and never generate them proactively as part of another task, a Tune step, or a documentation refresh. If you believe a diagram is missing or out of date, **say so and stop** — let me decide.
 
-## When I do ask
+## Structure: JSON payload plus one shared viewer
 
-Create `/ai/activity-diagrams/` if it does not exist yet, then create **one subdirectory per requested feature**, named after the feature in `kebab-case`, and inside it **one activity diagram as a single HTML file**:
-
-```
-/ai/activity-diagrams/<feature>/activity-diagram-<feature>-0001.html
-```
-
-Example:
+A diagram is **data, not markup**. Each version is a JSON file describing the flow. A single committed HTML viewer renders any of them.
 
 ```
 /ai/activity-diagrams/
+├── viewer.html                                        # written once, reused by every diagram
 ├── user-authentication/
-│   └── activity-diagram-user-authentication-0001.html
+│   └── activity-diagram-user-authentication-0001.json
 ├── checkout/
-│   ├── activity-diagram-checkout-0001.html
-│   └── activity-diagram-checkout-0002.html
+│   ├── activity-diagram-checkout-0001.json
+│   └── activity-diagram-checkout-0002.json
 └── invoice-generation/
-    └── activity-diagram-invoice-generation-0001.html
+    └── activity-diagram-invoice-generation-0001.json
 ```
+
+This split is deliberate. The JSON is what I read, diff, and grep; the viewer is what a human looks at. Do not hand-author SVG or per-diagram HTML — layout is the viewer's job.
+
+**Write `viewer.html` on the first request only.** On every later request, reuse it unchanged. Modify it solely when the payload schema itself must change, and when you do, keep it backward-compatible with existing payloads.
 
 ### Scope
 
@@ -386,35 +427,85 @@ Diagram **only the features I named** — never the full feature list. Resolve t
 ### Versioning rules
 
 * The version suffix is a **zero-padded 4-digit sequence**, starting at `0001`.
-* **Never edit, rename, or delete an existing diagram file.** When a feature's flow changes, add the next number (`-0002.html`, `-0003.html`, …).
+* **Never edit, rename, or delete an existing payload.** When a feature's flow changes, add the next number (`-0002.json`, `-0003.json`, …).
 * The **highest-numbered file in a subdirectory is the current diagram**; lower numbers are history.
-* Every diagram must state, near the top of the rendered page: the feature name, the version number, the date, and a one-line summary of what changed versus the previous version (`Initial version.` for `0001`).
+* Because payloads are JSON, `git diff` between two versions is readable. Keep node `id` values **stable across versions** so a diff shows what actually changed rather than a wholesale rewrite.
+
+### Payload schema
+
+```json
+{
+  "feature": "checkout",
+  "version": 2,
+  "date": "2026-08-27",
+  "changeSummary": "Added stock re-check before payment capture.",
+  "trigger": {
+    "kind": "user",
+    "actor": "Authenticated customer",
+    "entryPoint": "app/Http/Controllers/CheckoutController.php:42"
+  },
+  "layers": ["client", "api", "domain", "data", "external"],
+  "nodes": [
+    { "id": "start",      "type": "start",    "label": "Customer submits cart" },
+    { "id": "validate",   "type": "activity", "label": "Validate cart payload", "layer": "api",    "ref": "app/Http/Requests/CheckoutRequest.php" },
+    { "id": "stock",      "type": "decision", "label": "All items in stock?",   "layer": "domain", "ref": "app/Services/StockService.php:88" },
+    { "id": "capture",    "type": "external", "label": "Capture payment",       "layer": "external", "ref": "app/Services/Payments/StripeGateway.php:120", "note": "Idempotency key = order UUID" },
+    { "id": "persist",    "type": "activity", "label": "Persist order",         "layer": "data",   "ref": "app/Models/Order.php" },
+    { "id": "email",      "type": "async",    "label": "Queue confirmation email", "layer": "domain", "ref": "app/Jobs/SendOrderConfirmation.php" },
+    { "id": "oos",        "type": "error",    "label": "422 — item out of stock", "layer": "api" },
+    { "id": "rollback",   "type": "error",    "label": "Void capture, release stock", "layer": "domain", "verified": false },
+    { "id": "done",       "type": "end",      "label": "Order confirmed" }
+  ],
+  "edges": [
+    { "from": "start",    "to": "validate" },
+    { "from": "validate", "to": "stock" },
+    { "from": "stock",    "to": "capture",  "label": "yes",            "kind": "branch" },
+    { "from": "stock",    "to": "oos",      "label": "no",             "kind": "branch" },
+    { "from": "capture",  "to": "persist" },
+    { "from": "capture",  "to": "rollback", "label": "gateway failure", "kind": "error" },
+    { "from": "persist",  "to": "email",    "kind": "async" },
+    { "from": "persist",  "to": "done" }
+  ],
+  "gaps": ["Refund flow not traced — lives in a separate controller."]
+}
+```
+
+Field rules:
+
+* `node.type` — one of `start`, `end`, `activity`, `decision`, `async`, `external`, `error`.
+* `node.layer` — one of the strings declared in `layers`; omit only for `start` and `end`.
+* `node.ref` — `path/to/file.ext` or `path/to/file.ext:line`, so the diagram stays traceable to source. Include it wherever a real code location exists.
+* `node.verified` — set to `false` when the behaviour could not be confirmed from the code. The viewer must render these visibly as unverified. Never guess silently.
+* `node.note` — short, for non-obvious constraints only.
+* `edge.kind` — one of `normal` (default, omit), `branch`, `error`, `async`.
+* `gaps` — anything you could not trace, and why.
 
 ### Diagram content
 
-Each diagram must describe the feature's **actual** runtime flow as found in the code — not an idealized flow. Show:
+The payload must describe the feature's **actual** runtime flow as found in the code — not an idealized flow. It must cover:
 
 * Start and end states.
-* The actor or trigger (user action, cron, webhook, queue message, external callback).
-* Ordered activities across every layer the flow touches (client → API → business logic → data store → external service), with the layer identified.
+* The trigger (user action, cron, webhook, queue message, external callback) via `trigger`.
+* Ordered activities across every layer the flow touches, each tagged with its `layer`.
 * Decision points and branches, including validation and authorization checks.
-* Error, failure, and rollback paths.
-* Asynchronous hand-offs (jobs, queues, events) marked as async rather than drawn as inline steps.
-* The concrete code entry points involved, as `path/to/file.ext` references next to the relevant activities, so the diagram stays traceable to the source.
+* Error, failure, and rollback paths as `error` nodes and `error` edges.
+* Asynchronous hand-offs (jobs, queues, events) as `async` nodes, not as inline steps.
 
-If a flow cannot be determined from the code, mark that segment `UNVERIFIED` in the diagram rather than guessing.
+Before tracing routes or endpoints by hand, check `/ai/generated/` — if a route or OpenAPI inventory has been generated, use it as the entry-point source rather than re-deriving it.
 
-### File requirements
+### `viewer.html` requirements
 
-* **Self-contained and offline.** One HTML file per diagram, openable directly in a browser with no build step, no local server, and no network access. Inline all CSS and any JavaScript; do not link external stylesheets, scripts, fonts, or images.
-* Render the diagram as **inline SVG**, or as plain HTML/CSS boxes and connectors. Do not depend on a CDN-hosted diagramming library.
-* Include a `<title>` of the form `Activity Diagram — <Feature> — v0001`.
-* Legible in both light and dark browser themes; wide diagrams scroll inside their own container rather than forcing the page to scroll sideways.
-* Keep the markup readable and hand-editable — a human should be able to diff two versions.
+* **Self-contained and offline.** One HTML file, openable directly from disk with no build step, no local server, and no network access. Inline all CSS and JavaScript. Do not link or vendor an external diagramming library, font, or stylesheet.
+* **Loading a payload must work from `file://`.** A relative `fetch()` is blocked by CORS there, so the primary path is a **file picker** (`<input type="file">`) plus **drag-and-drop** of a `.json` payload onto the page. Additionally accept `?d=<relative-path>` for when the directory happens to be served over HTTP. Never make the page blank and silent when no payload is loaded — show instructions.
+* **Auto-layout.** Compute positions from `nodes` and `edges`; a layered top-to-bottom DAG walk is sufficient, with `layer` used for horizontal banding or colour. Roughly 150 lines of JavaScript. Never expect coordinates in the payload.
+* Render `decision` nodes distinctly from `activity`, `error` paths in a warning treatment, `async` edges dashed, and `verified: false` nodes with an explicit `UNVERIFIED` marker.
+* Show `feature`, `version`, `date`, and `changeSummary` in a header, and list `gaps` beneath the diagram.
+* Legible in both light and dark browser themes; a wide diagram scrolls inside its own container rather than forcing the page to scroll sideways.
+* Show each node's `ref` — inline or on hover — so a reader can jump to the code.
 
 ### Index
 
-After creating a diagram, add or update its row in an activity-diagram table in `/ai/features/feature-overview.md` — feature, current version, relative link. Only list features that actually have a diagram.
+After creating a payload, add or update its row in an activity-diagram table in `/ai/features/feature-overview.md` — feature, current version, relative link to the payload. Only list features that actually have a diagram.
 
 ---
 
@@ -434,10 +525,10 @@ Writing a test case document does **not** mean writing test code. Do not create,
 
 ## When I do ask
 
-Create `/ai/test-cases/` if it does not exist yet, then create **one subdirectory per requested feature**, named after the feature in `kebab-case`, and inside it **one test case document as a single HTML file**:
+Create `/ai/test-cases/` if it does not exist yet, then create **one subdirectory per requested feature**, named after the feature in `kebab-case`, and inside it **one Markdown document**:
 
 ```
-/ai/test-cases/<feature>/test-cases-<feature>-0001.html
+/ai/test-cases/<feature>/test-cases-<feature>-0001.md
 ```
 
 Example:
@@ -445,13 +536,15 @@ Example:
 ```
 /ai/test-cases/
 ├── user-authentication/
-│   └── test-cases-user-authentication-0001.html
+│   └── test-cases-user-authentication-0001.md
 ├── checkout/
-│   ├── test-cases-checkout-0001.html
-│   └── test-cases-checkout-0002.html
+│   ├── test-cases-checkout-0001.md
+│   └── test-cases-checkout-0002.md
 └── invoice-generation/
-    └── test-cases-invoice-generation-0001.html
+    └── test-cases-invoice-generation-0001.md
 ```
+
+Markdown, not HTML: test cases are a table, and Markdown renders on GitHub and in every editor, diffs cleanly, and needs no renderer.
 
 ### Scope
 
@@ -460,25 +553,55 @@ Write test cases for **only the features I named** — never the full feature li
 ### Versioning rules
 
 * The version suffix is a **zero-padded 4-digit sequence**, starting at `0001`.
-* **Never edit, rename, or delete an existing test case file.** When the feature's behaviour changes, add the next number (`-0002.html`, `-0003.html`, …).
+* **Never edit, rename, or delete an existing document.** When the feature's behaviour changes, add the next number (`-0002.md`, `-0003.md`, …).
 * The **highest-numbered file in a subdirectory is the current document**; lower numbers are history.
-* Every document must state, near the top of the rendered page: the feature name, the version number, the date, the total case count, and a one-line summary of what changed versus the previous version (`Initial version.` for `0001`).
+* **Keep each case on a single line** of the table. One changed line then means exactly one changed case, which keeps `git diff` between versions meaningful.
+* Case IDs are **stable**: once assigned, an ID always refers to the same case across every later version. Never renumber. Retire a case by moving it to a `## Retired` table with a reason.
+
+### Document shape
+
+Open with a header block, then the case table, then coverage gaps:
+
+```markdown
+# Test Cases — Checkout
+
+| | |
+| --- | --- |
+| Feature | `checkout` |
+| Version | 0002 |
+| Date | 2026-08-27 |
+| Cases | 18 |
+| Changed | Added stock re-check cases TC-CHECKOUT-016..018. |
+
+## Cases
+
+| ID | Title | Type | Pri | Preconditions | Steps | Expected result | Code reference | Automated? |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| TC-CHECKOUT-001 | Checkout succeeds with a single in-stock item | Happy path | High | Customer authenticated; cart holds 1 item, stock 5 | 1) POST `/checkout` with valid card token | 201; order persisted `status=confirmed`; confirmation job queued | `app/Http/Controllers/CheckoutController.php:42` | Yes — `tests/Feature/CheckoutTest.php::test_single_item` |
+| TC-CHECKOUT-007 | Rejects checkout when an item is out of stock | Validation | High | Cart holds 1 item, stock 0 | 1) POST `/checkout` | 422; body `{"error":"item_out_of_stock"}`; no order row; no payment capture | `app/Services/StockService.php:88` | No |
+
+## Coverage gaps
+
+* TC-CHECKOUT-007, -012 have no automated test.
+* Gateway timeout behaviour is `UNVERIFIED` — retry policy could not be determined from the code.
+```
+
+Column rules:
+
+* **ID** — `TC-<FEATURE>-001`, incrementing within the document (e.g. `TC-CHECKOUT-001`).
+* **Type** — `Happy path`, `Validation`, `Authorization`, `Edge case`, `Negative`, `Error handling`, or `Regression`.
+* **Pri** — `High`, `Medium`, `Low`.
+* **Preconditions** — required state, seeded data, roles, feature flags, environment.
+* **Steps** — numbered inline as `1) … 2) …`, concrete and reproducible, including the actual inputs used.
+* **Expected result** — the observable outcome: status codes, error messages, persisted state changes, and side effects (emails, jobs queued, webhooks fired).
+* **Code reference** — `path/to/file.ext` or `path/to/file.ext:line` for the handler, validation rule, or business logic the case exercises.
+* **Automated?** — `Yes — path/to/test.ext::test_name`, or `No`.
+
+Use plain Markdown only. Escape any `|` inside a cell as `\|`. If one case genuinely needs more detail than a row can hold, keep its row and add a `### TC-<FEATURE>-NNN` subsection under a `## Detailed cases` heading — do not widen the table or switch formats.
 
 ### Test case content
 
-Derive every case from the feature's **actual** implemented behaviour as found in the code — not from assumed or intended behaviour. Render the cases as a table, one row per case, with these columns:
-
-* **ID** — `TC-<FEATURE>-001`, incrementing within the document (e.g. `TC-CHECKOUT-001`). IDs are stable: once assigned, an ID always refers to the same case across versions.
-* **Title** — short description of what is being verified.
-* **Type** — `Happy path`, `Validation`, `Authorization`, `Edge case`, `Negative`, `Error handling`, or `Regression`.
-* **Priority** — `High`, `Medium`, `Low`.
-* **Preconditions** — required state, seeded data, roles, feature flags, environment.
-* **Steps** — numbered, concrete, and reproducible; include the actual inputs used.
-* **Expected result** — the observable outcome, including status codes, error messages, persisted state changes, and side effects (emails, jobs queued, webhooks fired).
-* **Code reference** — `path/to/file.ext` for the handler, validation rule, or business logic the case exercises.
-* **Automated?** — `Yes — path/to/test.ext::test_name`, or `No`.
-
-Cover, for each feature:
+Derive every case from the feature's **actual** implemented behaviour as found in the code — not from assumed or intended behaviour. Cover:
 
 * The primary happy path, and each meaningful variant of it.
 * Every validation rule and its failure message.
@@ -487,14 +610,9 @@ Cover, for each feature:
 * Error and failure handling, including external service failure and rollback behaviour.
 * Asynchronous outcomes (queued jobs, events, webhooks) as their own cases.
 
-Close the document with a **Coverage gaps** section: cases that exist here but have no automated test, behaviour that could not be determined from the code (mark `UNVERIFIED` rather than guessing), and anything untestable without additional fixtures or access.
+If the feature has an activity diagram, use its payload as the checklist — every `decision` node should produce cases for each branch, and every `error` node should produce at least one case. If a route or OpenAPI inventory exists under `/ai/generated/`, use it to confirm the endpoints and status codes rather than re-deriving them.
 
-### File requirements
-
-* **Self-contained and offline.** One HTML file per document, openable directly in a browser with no build step, no local server, and no network access. Inline all CSS and any JavaScript; do not link external stylesheets, scripts, fonts, or images.
-* Include a `<title>` of the form `Test Cases — <Feature> — v0001`.
-* Legible in both light and dark browser themes; the case table scrolls inside its own container rather than forcing the page to scroll sideways.
-* Keep the markup readable and hand-editable — a human should be able to diff two versions.
+Close with a **Coverage gaps** section: cases with no automated test, behaviour that could not be determined from the code (mark `UNVERIFIED` rather than guessing), and anything untestable without additional fixtures or access.
 
 ### Index
 
